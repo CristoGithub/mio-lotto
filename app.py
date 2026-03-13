@@ -2,90 +2,73 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-st.set_page_config(page_title="LottoPro Gold v5.0", layout="wide", page_icon="🎯")
+st.set_page_config(page_title="LottoPro Panoramic v5.2", layout="wide", page_icon="🎯")
 
-# --- CARICAMENTO E ORDINAMENTO ---
+# --- CARICAMENTO DATI ---
 @st.cache_data
-def carica_storico():
+def carica_dati():
     try:
-        # Carica il file txt
         df = pd.read_csv('storico.txt', sep=None, engine='python', header=None)
         df.columns = ['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5']
-        
-        # Pulizia date: proviamo a convertire in formato data per ordinare bene
         df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
-        
-        # ORDINE RECENTE: Mettiamo le date più nuove in alto
+        # Ordiniamo per data decrescente
         df = df.sort_values(by='Data', ascending=False)
-        
-        # Trasformiamo la data in testo pulito AAAA-MM-GG per la visualizzazione
-        df['Data'] = df['Data'].dt.strftime('%Y/%m/%d')
-        
         return df.dropna(subset=['Ruota', 'N1'])
     except:
-        # Se il file è troppo strano, facciamo solo il ribaltamento righe
-        df_backup = pd.read_csv('storico.txt', sep=None, engine='python', header=None).iloc[::-1]
-        return df_backup
+        return None
 
-df_base = carica_storico()
+df_base = carica_dati()
 
-# --- MEMORIA TEMPORANEA ---
-if 'extra_rows' not in st.session_state:
-    st.session_state.extra_rows = pd.DataFrame(columns=['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5'])
-
-# --- SIDEBAR ---
+# --- SIDEBAR (Budget) ---
+if 'wallet' not in st.session_state: st.session_state.wallet = 1000.0
 with st.sidebar:
-    st.header("✨ Gestione Dati")
+    st.header("💰 Gestione Budget")
+    st.metric("Saldo attuale", f"€ {st.session_state.wallet}")
+    # Qui potresti aggiungere il tasto per aggiornare il budget
+
+# --- MAIN ---
+st.title("🎯 LottoPro v5.2 - Panoramica Estrazioni")
+
+if df_base is not None:
+    # --- SEZIONE 1: ULTIMA ESTRAZIONE COMPLETA ---
+    ultima_data = df_base['Data'].iloc[0]
+    data_str = ultima_data.strftime('%d/%m/%Y')
     
-    with st.expander("➕ Aggiungi Estrazione"):
-        d_o = st.date_input("Data")
-        r_o = st.selectbox("Ruota", ["BA", "CA", "FI", "GE", "MI", "NA", "PA", "RM", "TO", "VE", "RN"])
-        n_in = st.text_input("5 Numeri (es: 10,20,30,40,50)")
-        
-        if st.button("Aggiungi all'Analisi"):
-            try:
-                nums = [int(x.strip()) for x in n_in.split(',')]
-                nuova = pd.DataFrame([[d_o.strftime('%Y/%m/%d'), r_o] + nums], 
-                                     columns=['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5'])
-                st.session_state.extra_rows = pd.concat([nuova, st.session_state.extra_rows], ignore_index=True)
-                st.success("Aggiunta in cima!")
-            except:
-                st.error("Errore: scrivi 5 numeri separati da virgola.")
+    with st.expander(f"📌 Ultima Estrazione Completa del {data_str}", expanded=True):
+        # Filtriamo tutte le ruote per l'ultima data disponibile
+        ultimo_concorso = df_base[df_base['Data'] == ultima_data].copy()
+        # Pulizia per la visualizzazione
+        ultimo_concorso['Data'] = ultimo_concorso['Data'].dt.strftime('%Y/%m/%d')
+        st.table(ultimo_concorso[['Ruota', 'N1', 'N2', 'N3', 'N4', 'N5']].reset_index(drop=True))
 
     st.divider()
-    if 'wallet' not in st.session_state: st.session_state.wallet = 1000.0
-    st.metric("Saldo", f"€ {st.session_state.wallet}")
-    # Logica portafoglio rapida
-    inc = st.number_input("Entrata/Uscita", value=0.0)
-    if st.button("Aggiorna Budget"):
-        st.session_state.wallet += inc
-        st.rerun()
 
-# --- AREA PRINCIPALE ---
-if df_base is not None:
-    # Uniamo manuale + storico
-    df_totale = pd.concat([st.session_state.extra_rows, df_base], ignore_index=True)
+    # --- SEZIONE 2: ANALISI SINGOLA RUOTA ---
+    tab1, tab2 = st.tabs(["📊 Analisi Dettagliata", "📈 Andamento Portafoglio"])
     
-    st.title("🎯 LottoPro v5.0")
-    
-    ruote_disponibili = sorted(df_totale['Ruota'].unique().astype(str))
-    sel = st.selectbox("Seleziona Ruota:", ruote_disponibili)
-    
-    df_f = df_totale[df_totale['Ruota'] == sel]
-    
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        st.subheader(f"Ultime Estrazioni su {sel}")
-        st.dataframe(df_f.head(25), use_container_width=True)
+    with tab1:
+        lista_ruote = sorted(df_base['Ruota'].unique().astype(str))
+        sel = st.selectbox("Seleziona una ruota per lo storico e previsioni:", lista_ruote)
         
-    with col2:
-        st.subheader("🔮 Previsione Calda")
-        # Analizziamo solo le ultime 200 estrazioni per non restare al 1939
-        tutti = pd.concat([df_f['N1'].head(200), df_f['N2'].head(200), df_f['N3'].head(200), df_f['N4'].head(200), df_f['N5'].head(200)])
-        f = tutti.value_counts().head(2)
+        df_f = df_base[df_base['Ruota'] == sel].copy()
+        df_f['Data'] = df_f['Data'].dt.strftime('%Y/%m/%d')
         
-        if not f.empty:
-            st.warning(f"### {int(f.index[0])} - {int(f.index[1])}")
-            st.write(f"Basato sugli ultimi dati di {sel}")
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            st.subheader(f"Storico Recente: {sel}")
+            st.dataframe(df_f.head(20), use_container_width=True)
+        
+        with c2:
+            st.subheader("🔮 Previsione Calda")
+            # Calcolo frequenza sugli ultimi 200 record della ruota
+            tutti = pd.concat([df_f['N1'].head(200), df_f['N2'].head(200), df_f['N3'].head(200), df_f['N4'].head(200), df_f['N5'].head(200)])
+            f = tutti.value_counts().head(2)
+            if not f.empty:
+                st.warning(f"### {int(f.index[0])} - {int(f.index[1])}")
+                st.caption(f"Numeri più frequenti su {sel} negli ultimi concorsi.")
+
+    with tab2:
+        st.write("Grafico andamento budget (in fase di test)")
+
 else:
-    st.error("Carica il file su GitHub.")
+    st.error("Errore: file storico.txt non trovato.")
