@@ -17,7 +17,7 @@ def carica_storico_base():
         return df.dropna(subset=['Ruota', 'N1'])
     except: return pd.DataFrame()
 
-# --- SESSION STATE (PERSISTENZA DATI) ---
+# --- SESSION STATE (MEMORIA) ---
 if 'extra_data' not in st.session_state:
     st.session_state.extra_data = pd.DataFrame(columns=['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5'])
 if 'wallet' not in st.session_state: st.session_state.wallet = 1000.0
@@ -39,7 +39,7 @@ def get_ritardo(df_r):
     top = max(ritardi, key=ritardi.get)
     return top, ritardi[top]
 
-# --- SIDEBAR: AGGIORNAMENTO E BOLLETTA ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("⚡ Gestione Rapida")
     with st.expander("Inserisci Estrazione", expanded=False):
@@ -52,20 +52,27 @@ with st.sidebar:
                 nuova = pd.DataFrame([[pd.to_datetime(d_n), r_n] + nums], columns=['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5'])
                 st.session_state.extra_data = pd.concat([nuova, st.session_state.extra_data], ignore_index=True)
                 st.rerun()
-            except: st.error("Errore formato")
+            except: st.error("Errore: usa il formato 1,2,3,4,5")
 
     st.divider()
     st.header("📝 Registra Giocata")
     with st.form("giocata"):
         t_g = st.selectbox("Tipo", ["Estratto", "Ambo", "Terno", "Quaterna", "Cinquina"])
         ru_g = st.selectbox("Ruota", ORDINE_RUOTE)
-        nu_g = st.text_input("Numeri")
-        im_g = st.number_input("Costo (€)", 1.0)
+        nu_g = st.text_input("Numeri Giocati")
+        im_g = st.number_input("Costo (€)", 1.0, step=0.5)
         if st.form_submit_button("Registra Bolletta"):
             st.session_state.giocate.insert(0, {"Data": datetime.now().strftime("%H:%M"), "Tipo": t_g, "Ruota": ru_g, "Numeri": nu_g, "Spesa": im_g})
             st.session_state.wallet -= im_g
             st.session_state.history.append(st.session_state.wallet)
             st.rerun()
+    
+    if st.button("Reset Totale"):
+        st.session_state.wallet = 1000.0
+        st.session_state.history = [1000.0]
+        st.session_state.giocate = []
+        st.session_state.extra_data = pd.DataFrame(columns=['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5'])
+        st.rerun()
 
 # --- MAIN ---
 st.title("🎯 LottoPro Master v6.4")
@@ -88,25 +95,33 @@ if not df_totale.empty:
                     "👑 Rit.": n_rit, "Ass.": v_rit
                 })
         
-        # Configurazione colonne centrate
-        cfg = {
-            "Ruota": st.column_config.TextColumn("Ruota"),
-            "1°": st.column_config.NumberColumn("1°", format="%d"),
-            "2°": st.column_config.NumberColumn("2°", format="%d"),
-            "3°": st.column_config.NumberColumn("3°", format="%d"),
-            "4°": st.column_config.NumberColumn("4°", format="%d"),
-            "5°": st.column_config.NumberColumn("5°", format="%d"),
-            "👑 Rit.": st.column_config.NumberColumn("👑 Rit.", format="%d"),
-            "Ass.": st.column_config.NumberColumn("Ass.", format="%d")
+        # --- CONFIGURAZIONE COLONNE (Centratura e Formato) ---
+        config_centrata = {
+            "Ruota": st.column_config.TextColumn("Ruota", width="medium"),
+            "1°": st.column_config.NumberColumn("1°", format="%d", width="small"),
+            "2°": st.column_config.NumberColumn("2°", format="%d", width="small"),
+            "3°": st.column_config.NumberColumn("3°", format="%d", width="small"),
+            "4°": st.column_config.NumberColumn("4°", format="%d", width="small"),
+            "5°": st.column_config.NumberColumn("5°", format="%d", width="small"),
+            "👑 Rit.": st.column_config.NumberColumn("👑 Rit.", format="%d", width="small"),
+            "Ass.": st.column_config.NumberColumn("Ass.", format="%d", width="small")
         }
-        st.dataframe(pd.DataFrame(riassunto), column_config=cfg, use_container_width=True, hide_index=True)
+
+        st.dataframe(
+            pd.DataFrame(riassunto), 
+            column_config=config_centrata, 
+            use_container_width=True, 
+            hide_index=True
+        )
 
     with col_dx:
         st.subheader("📋 Ultime Bollette")
-        for g in st.session_state.giocate[:3]:
-            with st.container(border=True):
-                st.write(f"**{g['Ruota']}** | {g['Numeri']}")
-                st.caption(f"{g['Tipo']} - Spesa: €{g['Spesa']}")
+        if st.session_state.giocate:
+            for g in st.session_state.giocate[:3]:
+                with st.container(border=True):
+                    st.write(f"**{g['Ruota']}** | {g['Numeri']}")
+                    st.caption(f"{g['Tipo']} - Spesa: €{g['Spesa']}")
+        else: st.info("Nessuna giocata.")
 
     st.divider()
     
@@ -120,7 +135,6 @@ if not df_totale.empty:
         
         df_f = df_totale[df_totale['Ruota'] == r_sel].reset_index(drop=True)
         if not df_f.empty:
-            # Calcolo Suggerimento
             n_ult = df_f.iloc[0][['N1','N2','N3','N4','N5']].values.astype(int)
             res = [0,0]
             if m_sel == "Frequenza":
@@ -135,7 +149,12 @@ if not df_totale.empty:
                 else: res = [11, 41]
             
             st.success(f"### Suggerimento {m_sel}: {res[0]} — {res[1]}")
-            st.dataframe(df_f.head(10).rename(columns={'N1':'1°','N2':'2°','N3':'3°','N4':'4°','N5':'5°'}), use_container_width=True, hide_index=True)
+            st.dataframe(
+                df_f.head(10).rename(columns={'N1':'1°','N2':'2°','N3':'3°','N4':'4°','N5':'5°'}), 
+                column_config={"Data": st.column_config.DateColumn(format="DD/MM/YYYY")},
+                use_container_width=True, 
+                hide_index=True
+            )
 
     with tab_bk:
         c_b1, c_b2 = st.columns([1, 2])
@@ -152,4 +171,4 @@ if not df_totale.empty:
             st.subheader("Andamento Capitale")
             st.line_chart(st.session_state.history)
 
-else: st.error("Dati non caricati.")
+else: st.error("Dati non caricati. Verifica storico.txt.")
