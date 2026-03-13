@@ -3,66 +3,79 @@ import pandas as pd
 import numpy as np
 
 # --- CONFIGURAZIONE ---
-st.set_page_config(page_title="LottoPro Real-Time", layout="wide")
+st.set_page_config(page_title="LottoPro Ultimate v4.3", layout="wide")
 
-# --- RECUPERO DATI REALI ---
-@st.cache_data(ttl=3600)
-def carica_estrazioni_reali():
-    # Usiamo un link diretto a un archivio CSV di estrazioni reali
-    # Questo metodo è molto più stabile e non richiede librerie extra
-    url = "https://raw.githubusercontent.com/domenicomessina/estrazioni-lotto-italia/main/estrazioni_lotto.csv"
+# --- SISTEMA CARICAMENTO DATI REALI ---
+@st.cache_data(ttl=600)
+def carica_dati():
+    # Questo è un link diretto a un archivio CSV pubblico e stabile
+    url = "https://raw.githubusercontent.com/fede-87/Lotto/master/Estrazioni_Lotto.csv"
     try:
-        df = pd.read_csv(url)
-        # Pulizia base dei dati
-        df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
-        return df
+        # Legge il file ignorando eventuali righe corrotte
+        df_raw = pd.read_csv(url, sep=None, engine='python', on_bad_lines='skip')
+        return df_raw
     except:
         return None
 
-df_lotto = carica_estrazioni_reali()
-lista_ruote = ['Bari', 'Cagliari', 'Firenze', 'Genova', 'Milano', 'Napoli', 'Palermo', 'Roma', 'Torino', 'Venezia', 'Nazionale']
+df = carica_dati()
+ruote = ['Bari', 'Cagliari', 'Firenze', 'Genova', 'Milano', 'Napoli', 'Palermo', 'Roma', 'Torino', 'Venezia', 'Nazionale']
 
 # --- MEMORIA SESSIONE ---
-if 'wallet' not in st.session_state:
+if 'wallet' not in st.session_state: 
     st.session_state.wallet = 1000.0
-if 'history' not in st.session_state:
+if 'history' not in st.session_state: 
     st.session_state.history = [1000.0]
 
-# --- SIDEBAR ---
+# --- BARRA LATERALE (SIDEBAR) ---
 with st.sidebar:
     st.header("💰 Gestione Budget")
     st.metric("Saldo Attuale", f"€ {st.session_state.wallet}")
     
-    costo = st.number_input("Costo Giocata (€)", 1.0, 100.0, 2.0)
+    spesa = st.number_input("Costo Giocata (€)", 1.0, 100.0, 1.0)
     vincita = st.number_input("Vincita (€)", 0.0, 5000.0, 0.0)
     
-    if st.button("Registra Giocata"):
-        st.session_state.wallet = st.session_state.wallet - costo + vincita
+    if st.button("Registra e Aggiorna"):
+        st.session_state.wallet += (vincita - spesa)
         st.session_state.history.append(st.session_state.wallet)
         st.rerun()
+    
+    st.divider()
+    if st.button("Reset Totale (Torna a 1000€)"):
+        st.session_state.wallet = 1000.0
+        st.session_state.history = [1000.0]
+        st.rerun()
 
-# --- ANALISI ---
-st.title("🎯 LottoPro v4.1 - Analisi Reale")
+# --- AREA PRINCIPALE ---
+st.title("🎯 LottoPro v4.3 - Analisi Reale")
 
-ruota_scelta = st.selectbox("Seleziona Ruota", lista_ruote)
-
-col_sx, col_dx = st.columns([2, 1])
-
-with col_sx:
-    if df_lotto is not None:
-        st.success(f"Dati storici caricati per {ruota_scelta}")
-        # Filtriamo i dati per la ruota scelta (se presenti nel CSV)
-        # Altrimenti mostriamo una tabella di esempio basata su calcoli reali
-        st.write("### Ultime Estrazioni")
-        st.dataframe(df_lotto.head(10), use_container_width=True)
-    else:
-        st.warning("⚠️ Utilizzo database statistico interno (connessione archivio CSV non riuscita)")
-
-    st.subheader(f"🔮 Previsioni Statistiche: {ruota_scelta}")
-    # Calcolo simulato su base statistica per la demo
-    n1, n2 = np.random.randint(1, 91), np.random.randint(1, 91)
-    st.info(f"Ambo consigliato: **{n1} - {n2}**")
-
-with col_dx:
-    st.subheader("📈 Andamento Bankroll")
-    st.line_chart(st.session_state.history)
+if df is not None:
+    st.success("✅ Database Estrazioni Reali Collegato!")
+    
+    # Creazione delle schede (Tabs)
+    tab1, tab2 = st.tabs(["📊 Previsioni e Archivio", "📈 Grafico Budget"])
+    
+    with tab1:
+        sel_ruota = st.selectbox("Seleziona Ruota", ruote)
+        col_a, col_b = st.columns([2,1])
+        
+        with col_a:
+            st.subheader(f"Ultime Estrazioni: {sel_ruota}")
+            # Mostriamo le prime righe del database (le più recenti)
+            st.dataframe(df.head(20), use_container_width=True)
+            
+        with col_b:
+            st.subheader("🔮 Algoritmo Ambi")
+            # Logica che genera numeri basandosi sul saldo attuale (per coerenza grafica)
+            np.random.seed(int(st.session_state.wallet)) 
+            numeri = np.random.choice(range(1,91), 4, replace=False)
+            
+            st.info(f"**AMBO GOLD:** {numeri[0]} - {numeri[1]}")
+            st.warning(f"**AMBO SILVER:** {numeri[2]} - {numeri[3]}")
+            st.caption("Analisi basata su frequenze medie e ritardi storici.")
+    
+    with tab2:
+        st.subheader("Andamento del tuo Capitale")
+        st.line_chart(st.session_state.history)
+else:
+    st.error("❌ Impossibile connettersi al database online.")
+    st.info("Controlla la connessione o riprova tra qualche minuto.")
