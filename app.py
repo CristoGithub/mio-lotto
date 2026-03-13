@@ -1,26 +1,4 @@
-st.markdown("""
-    <style>
-    /* Colore di sfondo per i suggerimenti della strategia */
-    .stSuccess {
-        background-color: #e8f5e9;
-        border-left: 5px solid #2e7d32;
-        color: #1b5e20;
-    }
-    
-    /* Colore per i box delle giocate a destra */
-    [data-testid="stVerticalBlock"] > div > div > div[style*="border: 1px solid"] {
-        background-color: #f0f2f6;
-        border-radius: 10px;
-        border-left: 5px solid #007bff !important;
-    }
 
-    /* Header delle tabelle in Blu Notte */
-    thead tr th {
-        background-color: #1a237e !important;
-        color: white !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 import streamlit as st
 import pandas as pd
 import numpy as np
