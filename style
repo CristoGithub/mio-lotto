@@ -1,0 +1,19 @@
+/* Animazione di entrata per i suggerimenti */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.stSuccess {
+    animation: fadeIn 0.8s ease-out;
+}
+
+/* Effetto pulsante sui numeri ritardatari */
+[data-testid="stTable"] td:nth-last-child(2) {
+    transition: all 0.3s;
+}
+
+[data-testid="stTable"] tr:hover td:nth-last-child(2) {
+    transform: scale(1.1);
+    color: #f59e0b !important;
+}
