@@ -1,5 +1,19 @@
 import streamlit as st
 import pandas as pd
+# ... altri import ...
+
+# --- CARICAMENTO STILE ESTERNO ---
+def local_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+# Chiama la funzione (assicurati che il file si chiami style.css o cambia il nome qui)
+try:
+    local_css("style.css")
+except FileNotFoundError:
+    st.error("File style.css non trovato!")
+import streamlit as st
+import pandas as pd
 import numpy as np
 from datetime import datetime
 
