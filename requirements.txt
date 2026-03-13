@@ -1,5 +1,2 @@
 pandas
 numpy
-beautifulsoup4
-requests
-pandas-datareader
