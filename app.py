@@ -4,15 +4,14 @@ import numpy as np
 from datetime import datetime
 
 # --- CONFIGURAZIONE PAGINA ---
-st.set_page_config(page_title="LottoPro Master v6.7", layout="wide", page_icon="💰")
+st.set_page_config(page_title="LottoPro Master v6.8", layout="wide", page_icon="💰")
 
 # --- CUSTOM CSS (COLORI E STILE) ---
 st.markdown("""
     <style>
-    /* Sfondo generale e font */
     .stApp { background-color: #f8f9fa; }
     
-    /* Centratura e stile Tabella Principale */
+    /* Tabella Principale Centrata */
     [data-testid="stTable"] {
         background-color: white;
         border-radius: 10px;
@@ -22,32 +21,23 @@ st.markdown("""
     [data-testid="stTable"] td, [data-testid="stTable"] th {
         text-align: center !important;
         vertical-align: middle !important;
-        padding: 10px !important;
     }
     [data-testid="stTable"] thead tr th {
-        background-color: #1a237e !important; /* Blu Notte */
+        background-color: #1a237e !important;
         color: white !important;
     }
     
-    /* Colore Oro per la colonna Ritardatari */
+    /* Colore Oro per Ritardatari */
     [data-testid="stTable"] td:nth-last-child(2) {
         color: #b8860b !important;
         font-weight: bold;
     }
 
-    /* Box Suggerimenti Strategia */
+    /* Box Suggerimenti */
     .stSuccess {
         background-color: #e8f5e9 !important;
         border-left: 5px solid #2e7d32 !important;
         color: #1b5e20 !important;
-        border-radius: 5px;
-    }
-    
-    /* Box Bollette a destra */
-    [data-testid="stVerticalBlock"] > div > div > div[style*="border: 1px solid"] {
-        background-color: #ffffff;
-        border-left: 5px solid #007bff !important;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -122,7 +112,7 @@ with st.sidebar:
             st.rerun()
 
 # --- MAIN ---
-st.title("🎯 LottoPro Master v6.7")
+st.title("🎯 LottoPro Master v6.8")
 
 if not df_totale.empty:
     c_sx, c_dx = st.columns([2.5, 1])
@@ -164,9 +154,23 @@ if not df_totale.empty:
                 f = t.value_counts().head(2)
                 res = [int(f.index[0]), int(f.index[1])]
                 desc = "I più frequenti nelle ultime 100 estrazioni."
-            # ... (Logica Distanza 30 e Somma 90 inclusa)
+            # Altri metodi per fallback
+            elif m_sel == "Distanza 30":
+                tr = [(n_ult[i], n_ult[j]) for i in range(5) for j in range(i+1, 5) if abs(n_ult[i]-n_ult[j])==30]
+                res = [(max(tr[0])+30)%91, (max(tr[0])+60)%91] if tr else [11, 41]
+                desc = "Ricerca di numeri con distanza ciclometrica 30."
+            elif m_sel == "Somma 90":
+                tr = [(n_ult[i], n_ult[j]) for i in range(5) for j in range(i+1, 5) if (n_ult[i]+n_ult[j])==90]
+                res = [90, abs(n_ult[0]-n_ult[1])] if tr else [9, 90]
+                desc = "Basato sulla chiusura a somma 90."
+
             st.success(f"### 💡 Suggerimento {m_sel}: {res[0]} — {res[1]}")
             st.info(desc)
+            
+            # --- TABELLA STORICO REINSERITA ---
+            st.subheader(f"📜 Ultime 10 estrazioni su {r_sel}")
+            df_f_vis = df_f.head(10).rename(columns={'N1':'1°','N2':'2°','N3':'3°','N4':'4°','N5':'5°'})
+            st.dataframe(df_f_vis[['Data', '1°', '2°', '3°', '4°', '5°']], use_container_width=True, hide_index=True)
 
     with tab_bk:
         st.metric("Saldo Attuale", f"€ {st.session_state.wallet}", delta=st.session_state.wallet - 1000.0)
