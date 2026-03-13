@@ -4,7 +4,22 @@ import numpy as np
 from datetime import datetime
 
 # --- CONFIGURAZIONE PAGINA ---
-st.set_page_config(page_title="LottoPro Master v6.4", layout="wide", page_icon="💰")
+st.set_page_config(page_title="LottoPro Master v6.5", layout="wide", page_icon="💰")
+
+# --- CSS PER CENTRATURA E RIMOZIONE SCROLL ---
+st.markdown("""
+    <style>
+    /* Centra il testo in tutte le celle delle tabelle */
+    [data-testid="stTable"] td, [data-testid="stTable"] th {
+        text-align: center !important;
+        vertical-align: middle !important;
+    }
+    /* Rimuove lo scroll e i bordi eccessivi per le tabelle statiche */
+    .stTable {
+        width: 100%;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 ORDINE_RUOTE = ["BA", "CA", "FI", "GE", "MI", "NA", "PA", "RM", "TO", "VE", "RN"]
 
@@ -17,7 +32,7 @@ def carica_storico_base():
         return df.dropna(subset=['Ruota', 'N1'])
     except: return pd.DataFrame()
 
-# --- SESSION STATE (MEMORIA) ---
+# --- SESSION STATE ---
 if 'extra_data' not in st.session_state:
     st.session_state.extra_data = pd.DataFrame(columns=['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5'])
 if 'wallet' not in st.session_state: st.session_state.wallet = 1000.0
@@ -32,10 +47,9 @@ df_totale = df_totale.sort_values(by='Data', ascending=False).reset_index(drop=T
 
 # --- FUNZIONI ---
 def get_ritardo(df_r):
-    ritardi = {}
-    for n in range(1, 91):
-        p = df_r[(df_r['N1']==n)|(df_r['N2']==n)|(df_r['N3']==n)|(df_r['N4']==n)|(df_r['N5']==n)]
-        ritardi[n] = p.index[0] if not p.empty else len(df_r)
+    ritardi = {n: (df_r[(df_r['N1']==n)|(df_r['N2']==n)|(df_r['N3']==n)|(df_r['N4']==n)|(df_r['N5']==n)].index[0] 
+               if not df_r[(df_r['N1']==n)|(df_r['N2']==n)|(df_r['N3']==n)|(df_r['N4']==n)|(df_r['N5']==n)].empty 
+               else len(df_r)) for n in range(1, 91)}
     top = max(ritardi, key=ritardi.get)
     return top, ritardi[top]
 
@@ -52,30 +66,23 @@ with st.sidebar:
                 nuova = pd.DataFrame([[pd.to_datetime(d_n), r_n] + nums], columns=['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5'])
                 st.session_state.extra_data = pd.concat([nuova, st.session_state.extra_data], ignore_index=True)
                 st.rerun()
-            except: st.error("Errore: usa il formato 1,2,3,4,5")
+            except: st.error("Errore formato")
 
     st.divider()
     st.header("📝 Registra Giocata")
     with st.form("giocata"):
         t_g = st.selectbox("Tipo", ["Estratto", "Ambo", "Terno", "Quaterna", "Cinquina"])
         ru_g = st.selectbox("Ruota", ORDINE_RUOTE)
-        nu_g = st.text_input("Numeri Giocati")
-        im_g = st.number_input("Costo (€)", 1.0, step=0.5)
-        if st.form_submit_button("Registra Bolletta"):
+        nu_g = st.text_input("Numeri")
+        im_g = st.number_input("Costo (€)", 1.0)
+        if st.form_submit_button("Registra"):
             st.session_state.giocate.insert(0, {"Data": datetime.now().strftime("%H:%M"), "Tipo": t_g, "Ruota": ru_g, "Numeri": nu_g, "Spesa": im_g})
             st.session_state.wallet -= im_g
             st.session_state.history.append(st.session_state.wallet)
             st.rerun()
-    
-    if st.button("Reset Totale"):
-        st.session_state.wallet = 1000.0
-        st.session_state.history = [1000.0]
-        st.session_state.giocate = []
-        st.session_state.extra_data = pd.DataFrame(columns=['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5'])
-        st.rerun()
 
 # --- MAIN ---
-st.title("🎯 LottoPro Master v6.4")
+st.title("🎯 LottoPro Master v6.5")
 
 if not df_totale.empty:
     col_sx, col_dx = st.columns([2.5, 1])
@@ -92,36 +99,18 @@ if not df_totale.empty:
                 n_rit, v_rit = get_ritardo(df_r)
                 riassunto.append({
                     "Ruota": r, "1°": est[0], "2°": est[1], "3°": est[2], "4°": est[3], "5°": est[4],
-                    "👑 Rit.": n_rit, "Ass.": v_rit
+                    "Rit.": n_rit, "Ass.": v_rit
                 })
         
-        # --- CONFIGURAZIONE COLONNE (Centratura e Formato) ---
-        config_centrata = {
-            "Ruota": st.column_config.TextColumn("Ruota", width="medium"),
-            "1°": st.column_config.NumberColumn("1°", format="%d", width="small"),
-            "2°": st.column_config.NumberColumn("2°", format="%d", width="small"),
-            "3°": st.column_config.NumberColumn("3°", format="%d", width="small"),
-            "4°": st.column_config.NumberColumn("4°", format="%d", width="small"),
-            "5°": st.column_config.NumberColumn("5°", format="%d", width="small"),
-            "👑 Rit.": st.column_config.NumberColumn("👑 Rit.", format="%d", width="small"),
-            "Ass.": st.column_config.NumberColumn("Ass.", format="%d", width="small")
-        }
-
-        st.dataframe(
-            pd.DataFrame(riassunto), 
-            column_config=config_centrata, 
-            use_container_width=True, 
-            hide_index=True
-        )
+        # USARE st.table AL POSTO DI st.dataframe PER RAGGIUNGERE LA CENTRATURA CSS E TOGLIERE LO SCROLL
+        st.table(pd.DataFrame(riassunto))
 
     with col_dx:
         st.subheader("📋 Ultime Bollette")
-        if st.session_state.giocate:
-            for g in st.session_state.giocate[:3]:
-                with st.container(border=True):
-                    st.write(f"**{g['Ruota']}** | {g['Numeri']}")
-                    st.caption(f"{g['Tipo']} - Spesa: €{g['Spesa']}")
-        else: st.info("Nessuna giocata.")
+        for g in st.session_state.giocate[:3]:
+            with st.container(border=True):
+                st.write(f"**{g['Ruota']}** | {g['Numeri']}")
+                st.caption(f"{g['Tipo']} - €{g['Spesa']}")
 
     st.divider()
     
@@ -130,11 +119,12 @@ if not df_totale.empty:
     
     with tab_an:
         c1, c2 = st.columns(2)
-        r_sel = c1.selectbox("Analizza Ruota:", ORDINE_RUOTE)
+        r_sel = c1.selectbox("Analizza:", ORDINE_RUOTE)
         m_sel = c2.selectbox("Metodo:", ["Frequenza", "Distanza 30", "Somma 90"])
         
         df_f = df_totale[df_totale['Ruota'] == r_sel].reset_index(drop=True)
         if not df_f.empty:
+            # Calcolo suggerimento
             n_ult = df_f.iloc[0][['N1','N2','N3','N4','N5']].values.astype(int)
             res = [0,0]
             if m_sel == "Frequenza":
@@ -149,26 +139,19 @@ if not df_totale.empty:
                 else: res = [11, 41]
             
             st.success(f"### Suggerimento {m_sel}: {res[0]} — {res[1]}")
-            st.dataframe(
-                df_f.head(10).rename(columns={'N1':'1°','N2':'2°','N3':'3°','N4':'4°','N5':'5°'}), 
-                column_config={"Data": st.column_config.DateColumn(format="DD/MM/YYYY")},
-                use_container_width=True, 
-                hide_index=True
-            )
+            # Qui usiamo st.dataframe per lo storico perché è più comodo scorrere indietro nel tempo
+            st.dataframe(df_f.head(10).rename(columns={'N1':'1°','N2':'2°','N3':'3°','N4':'4°','N5':'5°'}), use_container_width=True, hide_index=True)
 
     with tab_bk:
         c_b1, c_b2 = st.columns([1, 2])
         with c_b1:
             st.metric("Saldo Attuale", f"€ {st.session_state.wallet}", delta=st.session_state.wallet - 1000.0)
-            st.divider()
-            vincita_in = st.number_input("Registra una Vincita (€)", 0.0, 10000.0, step=0.5)
-            if st.button("Accredita Vincita"):
+            vincita_in = st.number_input("Registra Vincita (€)", 0.0, 10000.0)
+            if st.button("Accredita"):
                 st.session_state.wallet += vincita_in
                 st.session_state.history.append(st.session_state.wallet)
-                st.success("Saldo aggiornato!")
                 st.rerun()
         with c_b2:
-            st.subheader("Andamento Capitale")
             st.line_chart(st.session_state.history)
 
-else: st.error("Dati non caricati. Verifica storico.txt.")
+else: st.error("Dati mancanti.")
