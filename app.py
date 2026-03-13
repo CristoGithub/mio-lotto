@@ -9,92 +9,68 @@ st.set_page_config(page_title="LottoPro Analisi Storico", layout="wide", page_ic
 @st.cache_data
 def carica_storico():
     try:
-        # Carichiamo storico.txt (Data, Ruota, N1, N2, N3, N4, N5)
+        # Legge storico.txt
         df = pd.read_csv('storico.txt', sep=None, engine='python', header=None)
-        # Assegniamo i nomi alle colonne basandoci sul tuo screenshot
+        # Assegna nomi alle colonne
         df.columns = ['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5']
-        # Pulizia: assicuriamoci che i numeri siano interi
+        
+        # PULIZIA: Rimuove righe dove la Ruota o i numeri sono mancanti
+        df = df.dropna(subset=['Ruota', 'N1'])
+        
+        # Converte i numeri in interi per sicurezza
         for col in ['N1', 'N2', 'N3', 'N4', 'N5']:
             df[col] = pd.to_numeric(df[col], errors='coerce')
-        return df.dropna(subset=['N1']) # Rimuove righe vuote o corrotte
+            
+        return df.dropna() # Rimuove qualsiasi riga rimasta con errori
     except Exception as e:
         return None
 
 df = carica_storico()
 
-# --- GESTIONE BUDGET (SESSION STATE) ---
+# --- GESTIONE BUDGET ---
 if 'wallet' not in st.session_state: st.session_state.wallet = 1000.0
 if 'history' not in st.session_state: st.session_state.history = [1000.0]
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("💰 Gestione Budget")
-    st.metric("Saldo Attuale", f"€ {st.session_state.wallet}")
-    
-    col_s, col_v = st.columns(2)
-    spesa = col_s.number_input("Spesa (€)", 0.0, 1000.0, 1.0, step=0.5)
-    vincita = col_v.number_input("Vincita (€)", 0.0, 5000.0, 0.0, step=0.5)
-    
-    if st.button("📝 Registra Giocata", use_container_width=True):
+    st.header("💰 Budget")
+    st.metric("Saldo attuale", f"€ {st.session_state.wallet}")
+    spesa = st.number_input("Costo Giocata", 0.0, 1000.0, 1.0)
+    vincita = st.number_input("Vincita", 0.0, 5000.0, 0.0)
+    if st.button("Registra"):
         st.session_state.wallet += (vincita - spesa)
         st.session_state.history.append(st.session_state.wallet)
         st.rerun()
-    
-    st.divider()
-    if st.button("🗑️ Reset Totale"):
-        st.session_state.wallet = 1000.0
-        st.session_state.history = [1000.0]
-        st.rerun()
 
-# --- CORPO PRINCIPALE ---
-st.title("🎯 LottoPro v4.7 - Analisi Professionale")
+st.title("🎯 LottoPro v4.8 - Analisi Reale")
 
 if df is not None:
-    # Creazione Tabs
-    tab1, tab2 = st.tabs(["📊 Analisi Storico", "📈 Andamento Budget"])
+    tab1, tab2 = st.tabs(["📊 Analisi", "📈 Budget"])
     
     with tab1:
-        # Selettore Ruota dinamico dai tuoi dati (FI, GE, MI, ecc.)
-        lista_ruote = sorted(df['Ruota'].unique().astype(str))
-        ruota_sel = st.selectbox("🎯 Seleziona la Ruota da analizzare:", lista_ruote)
+        # CORREZIONE ERRORE: Estraiamo le ruote in modo sicuro
+        ruote_pure = [str(r) for r in df['Ruota'].unique() if pd.notna(r)]
+        lista_ruote = sorted(ruote_pure)
         
-        # Filtro dati per ruota
+        ruota_sel = st.selectbox("Scegli Ruota:", lista_ruote)
+        
         df_filtrato = df[df['Ruota'] == ruota_sel].copy()
         
-        col_dx, col_sx = st.columns([2, 1])
-        
-        with col_dx:
-            st.subheader(f"Ultime 15 estrazioni su {ruota_sel}")
-            # Mostriamo le ultime estrazioni invertendo l'ordine (più recenti sopra)
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            st.write(f"Ultime estrazioni {ruota_sel}")
             st.dataframe(df_filtrato.tail(15).iloc[::-1], use_container_width=True)
             
-        with col_sx:
-            st.subheader("🔮 Ambo Gold")
-            # Uniamo tutti i numeri della ruota scelta per calcolare la frequenza
-            tutti_i_numeri = pd.concat([df_filtrato['N1'], df_filtrato['N2'], df_filtrato['N3'], df_filtrato['N4'], df_filtrato['N5']])
+        with c2:
+            st.subheader("🔮 Ambi Caldi")
+            tutti = pd.concat([df_filtrato['N1'], df_filtrato['N2'], df_filtrato['N3'], df_filtrato['N4'], df_filtrato['N5']])
+            freq = tutti.value_counts().head(2)
             
-            # Calcolo dei 2 numeri più frequenti
-            frequenze = tutti_i_numeri.value_counts().head(2)
-            
-            if len(frequenze) >= 2:
-                n1, n2 = frequenze.index[0], frequenze.index[1]
-                st.info(f"I numeri più caldi su **{ruota_sel}**:")
-                st.markdown(f"### 🏆 {int(n1)} - {int(n2)}")
-                st.caption(f"Il numero {int(n1)} è uscito {frequenze.iloc[0]} volte nel tuo archivio.")
-            else:
-                st.warning("Dati insufficienti per questa ruota.")
-            
-            st.divider()
-            st.write("💡 *L'analisi si aggiorna automaticamente ogni volta che aggiungi righe al tuo file storico.txt.*")
-
+            if len(freq) >= 2:
+                st.success(f"### {int(freq.index[0])} - {int(freq.index[1])}")
+                st.caption("Numeri più frequenti nel tuo archivio")
+    
     with tab2:
-        st.subheader("Evoluzione del capitale")
         st.line_chart(st.session_state.history)
-        if len(st.session_state.history) > 1:
-            diff = st.session_state.wallet - 1000.0
-            colore = "green" if diff >= 0 else "red"
-            st.markdown(f"Bilancio totale: :[{colore}][€ {diff}]")
-
 else:
-    st.error("ERRORE: Non riesco a leggere 'storico.txt'.")
-    st.info("Verifica che il file sia su GitHub e che non ci siano righe di testo descrittivo all'inizio.")
+    st.error("Impossibile caricare lo storico. Controlla il file su GitHub.")
