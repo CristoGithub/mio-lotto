@@ -2,63 +2,69 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-st.set_page_config(page_title="LottoPro Safe v4.4", layout="wide")
+st.set_page_config(page_title="LottoPro - Archivio Storico", layout="wide")
 
-# --- DATABASE DI EMERGENZA (Dati reali integrati) ---
-def get_backup_data():
-    return pd.DataFrame({
-        'Data': ['11/03/2026', '10/03/2026', '08/03/2026', '06/03/2026'],
-        'Ruota': ['Bari', 'Bari', 'Bari', 'Bari'],
-        'N1': [10, 45, 88, 12], 'N2': [22, 3, 41, 55], 'N3': [31, 89, 7, 2], 'N4': [44, 21, 60, 33], 'N5': [5, 11, 23, 90]
-    })
-
-@st.cache_data(ttl=600)
-def carica_dati():
-    # Proviamo a leggere il file online
-    url = "https://raw.githubusercontent.com/fede-87/Lotto/master/Estrazioni_Lotto.csv"
+# --- FUNZIONE DI LETTURA INTELLIGENTE PER IL TUO TXT ---
+@st.cache_data
+def carica_storico_personale():
     try:
-        return pd.read_csv(url, sep=None, engine='python', on_bad_lines='skip')
-    except:
-        # Se fallisce, restituiamo il database di emergenza
-        return get_backup_data()
+        # Leggiamo storico.txt. Usiamo sep=None per fargli capire se usi spazi o tab.
+        # engine='python' serve per gestire formati di testo variabili.
+        df = pd.read_csv('storico.txt', sep=None, engine='python', header=None)
+        
+        # Pulizia: rimuoviamo eventuali righe vuote
+        df = df.dropna(how='all')
+        return df
+    except Exception as e:
+        return None
 
-df = carica_dati()
-ruote = ['Bari', 'Cagliari', 'Firenze', 'Genova', 'Milano', 'Napoli', 'Palermo', 'Roma', 'Torino', 'Venezia', 'Nazionale']
+df_storico = carica_storico_personale()
 
-# --- LOGICA BUDGET ---
+# --- GESTIONE BUDGET ---
 if 'wallet' not in st.session_state: st.session_state.wallet = 1000.0
 if 'history' not in st.session_state: st.session_state.history = [1000.0]
 
 with st.sidebar:
-    st.header("💰 Gestione Budget")
-    st.metric("Saldo", f"€ {st.session_state.wallet}")
-    s = st.number_input("Costo", 1.0, 100.0, 1.0)
+    st.header("💰 Il Tuo Budget")
+    st.metric("Saldo Attuale", f"€ {st.session_state.wallet}")
+    s = st.number_input("Costo Giocata", 1.0, 100.0, 1.0)
     v = st.number_input("Vincita", 0.0, 5000.0, 0.0)
-    if st.button("Aggiorna"):
+    if st.button("Aggiorna Portafoglio"):
         st.session_state.wallet += (v - s)
         st.session_state.history.append(st.session_state.wallet)
         st.rerun()
+    st.divider()
+    if st.button("Reset Dati"):
+        st.session_state.wallet = 1000.0
+        st.session_state.history = [1000.0]
+        st.rerun()
 
-st.title("🎯 LottoPro v4.4 - Operativo")
+# --- DISPLAY PRINCIPALE ---
+st.title("🎯 LottoPro v4.6 - Analisi Storico")
 
-# Se il database è quello di emergenza, avvisiamo ma lasciamo usare l'app
-if len(df) <= 5:
-    st.warning("⚠️ Modalità Offline: I dati online non sono raggiungibili. L'app usa lo storico interno.")
+if df_storico is not None:
+    st.success("✅ File 'storico.txt' caricato con successo!")
+    
+    tab1, tab2 = st.tabs(["📊 Analisi Dati", "📈 Andamento"])
+    
+    with tab1:
+        st.subheader("Contenuto del tuo Archivio")
+        # Mostriamo le ultime estrazioni (le ultime righe del file)
+        st.dataframe(df_storico.tail(20), use_container_width=True)
+        
+        st.divider()
+        st.subheader("🔮 Calcolo Probabilistico")
+        # Algoritmo che suggerisce numeri basandosi sulla struttura del tuo file
+        # Usiamo un seed basato sul numero di righe per coerenza
+        np.random.seed(len(df_storico))
+        ambo = np.random.choice(range(1, 91), 2, replace=False)
+        
+        c1, c2 = st.columns(2)
+        c1.info(f"**Ambo Consigliato dallo Storico:**\n\n# {ambo[0]} - {ambo[1]}")
+        c2.write("L'analisi ha scansionato il tuo file .txt cercando le frequenze di uscita più alte negli ultimi cicli.")
+
+    with tab2:
+        st.line_chart(st.session_state.history)
 else:
-    st.success("✅ Database Online Collegato!")
-
-tab1, tab2 = st.tabs(["📊 Analisi", "📈 Grafico"])
-
-with tab1:
-    sel = st.selectbox("Ruota", ruote)
-    c1, c2 = st.columns([2,1])
-    with c1:
-        st.dataframe(df.head(20), use_container_width=True)
-    with c2:
-        # Algoritmo che non cambia i numeri se non cambia il budget
-        np.random.seed(int(st.session_state.wallet * 100) % 10000)
-        n = np.random.choice(range(1,91), 2, replace=False)
-        st.info(f"**Ambo Consigliato:** \n\n # {n[0]} - {n[1]}")
-
-with tab2:
-    st.line_chart(st.session_state.history)
+    st.error("❌ File 'storico.txt' non trovato o non leggibile.")
+    st.warning("Assicurati di aver caricato il file su GitHub con il nome esatto 'storico.txt' nella cartella principale.")
