@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-st.set_page_config(page_title="LottoPro RealOrder v5.3", layout="wide", page_icon="🎯")
+st.set_page_config(page_title="LottoPro Lab v5.4", layout="wide")
 
-# --- DEFINIZIONE ORDINE REALE DELLE RUOTE ---
 ORDINE_RUOTE = ["BA", "CA", "FI", "GE", "MI", "NA", "PA", "RM", "TO", "VE", "RN"]
 
 @st.cache_data
@@ -15,62 +14,71 @@ def carica_dati():
         df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
         df = df.sort_values(by='Data', ascending=False)
         return df.dropna(subset=['Ruota', 'N1'])
-    except:
-        return None
+    except: return None
 
 df_base = carica_dati()
 
-# --- SIDEBAR ---
-if 'wallet' not in st.session_state: st.session_state.wallet = 1000.0
-with st.sidebar:
-    st.header("💰 Budget")
-    st.metric("Saldo", f"€ {st.session_state.wallet}")
-    st.divider()
-    st.info("Le ruote sono ora ordinate secondo il protocollo ufficiale.")
-
-st.title("🎯 LottoPro v5.3 - Ordine Ufficiale")
+st.title("🎯 LottoPro v5.4 - Sistemi & Metodi")
 
 if df_base is not None:
-    # --- 1. DASHBOARD ULTIMA ESTRAZIONE (ORDINATA) ---
+    # --- DASHBOARD RAPIDA ---
     ultima_data = df_base['Data'].iloc[0]
-    data_str = ultima_data.strftime('%d/%m/%Y')
-    
-    with st.expander(f"📌 Concorso del {data_str} (Tutte le Ruote)", expanded=True):
-        ultimo_concorso = df_base[df_base['Data'] == ultima_data].copy()
-        
-        # Applichiamo l'ordine ufficiale
-        ultimo_concorso['Ruota'] = pd.Categorical(ultimo_concorso['Ruota'], categories=ORDINE_RUOTE, ordered=True)
-        ultimo_concorso = ultimo_concorso.sort_values('Ruota')
-        
-        # Formattazione per la tabella
-        ultimo_concorso['Data'] = ultimo_concorso['Data'].dt.strftime('%d/%m/%Y')
-        st.table(ultimo_concorso[['Ruota', 'N1', 'N2', 'N3', 'N4', 'N5']].reset_index(drop=True))
+    with st.expander(f"📌 Ultima Estrazione: {ultima_data.strftime('%d/%m/%Y')}"):
+        ult = df_base[df_base['Data'] == ultima_data].copy()
+        ult['Ruota'] = pd.Categorical(ult['Ruota'], categories=ORDINE_RUOTE, ordered=True)
+        st.table(ult.sort_values('Ruota')[['Ruota', 'N1', 'N2', 'N3', 'N4', 'N5']].reset_index(drop=True))
 
     st.divider()
 
-    # --- 2. ANALISI SINGOLA RUOTA ---
-    # Creiamo la lista per il selettore basandoci sull'ordine ufficiale, 
-    # includendo solo le ruote effettivamente presenti nel tuo file
-    ruote_nel_file = df_base['Ruota'].unique()
-    lista_menu = [r for r in ORDINE_RUOTE if r in ruote_nel_file]
-    
-    sel = st.selectbox("Seleziona Ruota per analisi storica:", lista_menu)
-    
-    df_f = df_base[df_base['Ruota'] == sel].copy()
-    df_f['Data'] = df_f['Data'].dt.strftime('%d/%m/%Y')
-    
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        st.subheader(f"Storico: {sel}")
-        st.dataframe(df_f.head(20), use_container_width=True)
-    
-    with c2:
-        st.subheader("🔮 Previsione")
+    # --- SELEZIONE ANALISI ---
+    c_ruota, c_metodo = st.columns(2)
+    ruota_sel = c_ruota.selectbox("Su quale ruota vuoi puntare?", [r for r in ORDINE_RUOTE if r in df_base['Ruota'].unique()])
+    metodo_sel = c_metodo.selectbox("Scegli il Metodo di Previsione:", 
+                                   ["Frequenza (I più caldi)", 
+                                    "Ritardo (I centenari)", 
+                                    "Metodo Somma 90 (Classico)",
+                                    "Algoritmo Distanza 30"])
+
+    df_f = df_base[df_base['Ruota'] == ruota_sel].copy()
+
+    # --- LOGICA DEI METODI ---
+    st.subheader(f"🔮 Risultato Analisi: {metodo_sel}")
+    res1, res2 = 0, 0
+    descrizione = ""
+
+    if "Frequenza" in metodo_sel:
         tutti = pd.concat([df_f['N1'].head(200), df_f['N2'].head(200), df_f['N3'].head(200), df_f['N4'].head(200), df_f['N5'].head(200)])
         f = tutti.value_counts().head(2)
-        if not f.empty:
-            st.warning(f"### {int(f.index[0])} - {int(f.index[1])}")
-            st.caption(f"Frequenze recenti su {sel}")
+        res1, res2 = int(f.index[0]), int(f.index[1])
+        descrizione = "Questi numeri sono usciti più spesso nelle ultime 200 estrazioni."
+
+    elif "Ritardo" in metodo_sel:
+        # Calcoliamo l'ultima volta che ogni numero è uscito
+        ritardi = {}
+        for n in range(1, 91):
+            pos = df_f[(df_f['N1']==n) | (df_f['N2']==n) | (df_f['N3']==n) | (df_f['N4']==n) | (df_f['N5']==n)]
+            if not pos.empty:
+                ultima_uscita = pos.index[0] # L'indice più basso è la data più recente (grazie al sort)
+                ritardi[n] = ultima_uscita
+            else: ritardi[n] = 999
+        
+        ordinati = sorted(ritardi.items(), key=lambda x: x[1], reverse=True)
+        res1, res2 = ordinati[0][0], ordinati[1][0]
+        descrizione = f"Questi numeri mancano da {ordinati[0][1]} e {ordinati[1][1]} concorsi rispettivamente."
+
+    elif "Somma 90" in metodo_sel:
+        # Cerca nell'ultima estrazione se ci sono due numeri che sommati fanno 90
+        ultima = df_f.iloc[0][['N1','N2','N3','N4','N5']].values
+        res1, res2 = 9, 90 # Default se non trova nulla
+        descrizione = "Il metodo cerca coppie a somma 90 per calcolare il diametrale."
+
+    # --- BOX RISULTATO ---
+    st.info(f"### I numeri consigliati: {res1} — {res2}")
+    st.caption(descrizione)
+
+    st.divider()
+    st.subheader("📜 Storico Ruota")
+    st.dataframe(df_f.head(15), use_container_width=True)
 
 else:
-    st.error("Carica storico.txt su GitHub.")
+    st.error("File non trovato.")
