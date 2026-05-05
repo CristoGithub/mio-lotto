@@ -16,77 +16,96 @@ MOLT_TERNO = 4500
 TASSA_STATO = 0.08 
 
 # --- STILE DARK & GOLD (DALLA TUA GRAFICA) ---
+# --- STILE HIGH-VISIBILITY MIDNIGHT & GOLD ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;800&display=swap');
     
     :root {
-        --bg: #0a0a0f;
-        --card: #16161f;
-        --gold: #d4a843;
-        --text: #e8e4d9;
+        --bg: #0f172a;           /* Blu Notte più chiaro per visibilità */
+        --card: #1e293b;         /* Slate blue per staccare dal fondo */
+        --gold: #fbbf24;         /* Oro più acceso (Vibrant Amber) */
+        --text: #f8fafc;         /* Bianco ghiaccio per massimo contrasto */
+        --border: #334155;
     }
 
-    .stApp { background-color: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; }
+    .stApp { 
+        background-color: var(--bg); 
+        color: var(--text); 
+        font-family: 'Syne', sans-serif; 
+    }
     
-    /* Header stile Android */
+    /* Header più luminoso */
     .header-box {
-        background: var(--bg);
-        border-bottom: 1px solid rgba(255,255,255,0.07);
-        padding: 20px;
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border-bottom: 2px solid var(--gold);
+        padding: 25px 20px;
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
     .header-box h1 {
-        font-size: 24px;
+        font-size: 26px;
         font-weight: 800;
-        background: linear-gradient(135deg, #d4a843, #f0c96a);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: var(--gold);
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         margin: 0;
+        letter-spacing: 1px;
     }
     
-    /* Card e Input */
-    .stTextInput, .stSelectbox, .stMultiselect {
-        background-color: var(--card) !important;
-        border-radius: 10px !important;
+    /* Card con bordi definiti */
+    div[data-testid="stVerticalBlock"] > div.element-container {
+        background-color: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 5px;
+        margin-bottom: 10px;
     }
     
-    /* Pulsanti Oro */
+    /* Pulsanti con contrasto elevato */
     .stButton>button {
         width: 100%;
-        background: var(--gold) !important;
-        color: #0a0a0f !important;
+        background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%) !important;
+        color: #0f172a !important;
         border: none !important;
-        border-radius: 10px !important;
+        border-radius: 12px !important;
         font-weight: 800 !important;
-        padding: 15px !important;
-        text-transform: uppercase;
+        font-size: 16px !important;
+        padding: 18px !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
     }
     
-    /* Palle numeri stile Android */
+    /* Numeri Oro luminosi */
     .ball-container {
         display: flex;
-        justify-content: space-around;
-        margin: 20px 0;
+        justify-content: center;
+        gap: 10px;
+        margin: 25px 0;
+        flex-wrap: wrap;
     }
     .ball-mobile {
-        width: 55px;
-        height: 55px;
-        border: 2px solid var(--gold);
+        width: 60px;
+        height: 60px;
+        border: 3px solid var(--gold);
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         font-family: 'Space Mono', monospace;
         font-weight: 700;
-        font-size: 20px;
+        font-size: 22px;
         color: var(--gold);
-        background: rgba(212,168,67,0.1);
+        background: rgba(251, 191, 36, 0.15);
+        box-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
+    }
+
+    /* Input più visibili */
+    input, select {
+        color: white !important;
+        background-color: #0f172a !important;
     }
 </style>
 """, unsafe_allow_html=True)
-
 # --- FUNZIONI LOGICHE (IL MOTORE ULTRA) ---
 def calcola_distanza(a, b):
     d = abs(a - b)
