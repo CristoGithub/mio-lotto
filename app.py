@@ -17,16 +17,17 @@ TASSA_STATO = 0.08
 
 # --- STILE DARK & GOLD (DALLA TUA GRAFICA) ---
 # --- STILE HIGH-VISIBILITY MIDNIGHT & GOLD ---
+# --- STILE LIGHT MODE HIGH-CONTRAST (PERFETTO PER CELLULARE) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;800&display=swap');
     
     :root {
-        --bg: #0f172a;           /* Blu Notte più chiaro per visibilità */
-        --card: #1e293b;         /* Slate blue per staccare dal fondo */
-        --gold: #fbbf24;         /* Oro più acceso (Vibrant Amber) */
-        --text: #f8fafc;         /* Bianco ghiaccio per massimo contrasto */
-        --border: #334155;
+        --bg: #f8fafc;           /* Sfondo chiaro (bianco sporco) */
+        --card: #ffffff;         /* Card bianche pure */
+        --gold: #b45309;         /* Oro scuro/Ambra per contrasto su bianco */
+        --text: #0f172a;         /* Testo blu notte quasi nero */
+        --border: #e2e8f0;       /* Bordi grigio chiaro */
     }
 
     .stApp { 
@@ -35,51 +36,51 @@ st.markdown("""
         font-family: 'Syne', sans-serif; 
     }
     
-    /* Header più luminoso */
+    /* Header Chiaro e Elegante */
     .header-box {
-        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-        border-bottom: 2px solid var(--gold);
+        background: #ffffff;
+        border-bottom: 3px solid var(--gold);
         padding: 25px 20px;
         text-align: center;
         margin-bottom: 25px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
     }
     .header-box h1 {
         font-size: 26px;
         font-weight: 800;
         color: var(--gold);
-        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         margin: 0;
         letter-spacing: 1px;
     }
     
-    /* Card con bordi definiti */
+    /* Card con ombra leggera per profondità */
     div[data-testid="stVerticalBlock"] > div.element-container {
         background-color: var(--card);
         border: 1px solid var(--border);
         border-radius: 12px;
-        padding: 5px;
-        margin-bottom: 10px;
+        padding: 8px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     }
     
-    /* Pulsanti con contrasto elevato */
+    /* Pulsanti Oro Scuro (Testo Bianco per leggibilità) */
     .stButton>button {
         width: 100%;
-        background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%) !important;
-        color: #0f172a !important;
+        background: var(--gold) !important;
+        color: #ffffff !important;
         border: none !important;
         border-radius: 12px !important;
         font-weight: 800 !important;
         font-size: 16px !important;
         padding: 18px !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 6px rgba(180, 83, 9, 0.2);
     }
     
-    /* Numeri Oro luminosi */
+    /* Numeri Ambi/Terni (Palle bianche con bordo oro) */
     .ball-container {
         display: flex;
         justify-content: center;
-        gap: 10px;
+        gap: 12px;
         margin: 25px 0;
         flex-wrap: wrap;
     }
@@ -95,14 +96,27 @@ st.markdown("""
         font-weight: 700;
         font-size: 22px;
         color: var(--gold);
-        background: rgba(251, 191, 36, 0.15);
-        box-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
+        background: #ffffff;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
     }
 
-    /* Input più visibili */
-    input, select {
-        color: white !important;
-        background-color: #0f172a !important;
+    /* Checkbox e Testi tabelle */
+    .stCheckbox label {
+        color: var(--text) !important;
+        font-weight: 600;
+    }
+    
+    /* Input Form */
+    input, select, textarea {
+        color: var(--text) !important;
+        background-color: #ffffff !important;
+        border: 1px solid var(--border) !important;
+    }
+    
+    /* Tabelle Bankroll (Testo Nero su Bianco) */
+    .stDataFrame {
+        background-color: #ffffff;
+        border-radius: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
