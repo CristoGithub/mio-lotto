@@ -234,3 +234,28 @@ if file_arch:
                     df_tot.to_csv(DB_FILE, index=False); st.rerun()
 
                 st.dataframe(df_tot.sort_values(by="Data", ascending=False))
+        with tab_calc:
+            st.markdown("### 🧮 Calcolatore Vincite Rapido")
+            st.info("Calcola la vincita netta (già detratta della tassa dell'8%)")
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                tipo_g = st.selectbox("Tipo di giocata", ["Ambo Secco", "Terno Secco"], key="calc_tipo")
+                importo_g = st.number_input("Importo giocato (€)", min_value=1.0, value=1.0, step=0.5)
+            
+            with c2:
+                moltiplicatore = MOLT_AMBO if tipo_g == "Ambo Secco" else MOLT_TERNO
+                vincita_lorda = importo_g * moltiplicatore
+                vincita_netta = vincita_lorda * (1 - TASSA_STATO)
+                
+                st.metric("VINCITA NETTA", f"{vincita_netta:.2f} €")
+                st.write(f"Lorda: {vincita_lorda:.2f} €")
+            
+            st.divider()
+            st.markdown("#### 💡 Tabella Rapida (Puntata 1€)")
+            data_calc = {
+                "Sorte": ["Ambo Secco", "Terno Secco"],
+                "Moltiplicatore": [f"{MOLT_AMBO}x", f"{MOLT_TERNO}x"],
+                "Vincita Netta (1€)": [f"{MOLT_AMBO*(1-TASSA_STATO):.2f} €", f"{MOLT_TERNO*(1-TASSA_STATO):.2f} €"]
+            }
+            st.table(pd.DataFrame(data_calc))
