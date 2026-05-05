@@ -1,154 +1,203 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from datetime import datetime
-from collections import Counter
+import re
+import os
 import itertools
+from datetime import datetime
+from fpdf import FPDF
 
-# --- CONFIGURAZIONE PAGINA ---
-st.set_page_config(page_title="LottoPro Master v6.9", layout="wide", page_icon="🎯")
+# --- CONFIGURAZIONE MOBILE-FIRST ---
+st.set_page_config(page_title="ULTRA SYNTHESIS 2026", layout="centered")
 
-# --- STYLE CSS (Layout Chrome Originale v6.9) ---
+# --- COSTANTI ---
+DB_FILE = "DATABASE_GIOCATE_ULTRA.csv"
+MOLT_AMBO = 250
+MOLT_TERNO = 4500
+TASSA_STATO = 0.08 
+
+# --- STILE DARK & GOLD (DALLA TUA GRAFICA) ---
 st.markdown("""
-    <style>
-    .stApp { background-color: #f0f2f6; }
-    [data-testid="stTable"] { 
-        background-color: white; 
-        border-radius: 15px !important; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; 
-    }
-    [data-testid="stTable"] thead tr th { 
-        background-color: #1e3a8a !important; 
-        color: white !important; 
-        text-align: center !important; 
-    }
-    [data-testid="stTable"] td { text-align: center !important; vertical-align: middle !important; }
-    .stSuccess { 
-        background-color: #ecfdf5 !important; 
-        border-left: 8px solid #10b981 !important; 
-        border-radius: 12px !important; 
-        color: #064e3b !important;
-    }
-    [data-testid="stSidebar"] { background-color: #0f172a !important; }
-    [data-testid="stSidebar"] * { color: #f8fafc !important; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- FUNZIONI DATI E ANALISI AMBI (200 Cicli) ---
-@st.cache_data
-def carica_storico():
-    try:
-        df = pd.read_csv('storico.txt', sep=None, engine='python', header=None)
-        df.columns = ['Data', 'Ruota', 'N1', 'N2', 'N3', 'N4', 'N5']
-        df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
-        return df.dropna(subset=['Ruota', 'N1'])
-    except: return pd.DataFrame()
-
-def analizzatore_ambi_spia_200(df, ruota_sel):
-    # Filtriamo le ultime 200 estrazioni della ruota selezionata
-    df_r = df[df['Ruota'] == ruota_sel].sort_values(by='Data', ascending=False).reset_index(drop=True).head(200)
-    if len(df_r) < 20: return None
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;800&display=swap');
     
-    database_ambi = []
-    # Logica: Cosa è uscito dopo ogni numero apparso?
-    for i in range(len(df_r) - 1):
-        numeri_spia = df_r.iloc[i+1][['N1','N2','N3','N4','N5']].values
-        numeri_risultato = sorted(df_r.iloc[i][['N1','N2','N3','N4','N5']].values.astype(int))
-        # Generiamo tutti gli ambi possibili nell'estrazione successiva
-        ambi_usciti = list(itertools.combinations(numeri_risultato, 2))
+    :root {
+        --bg: #0a0a0f;
+        --card: #16161f;
+        --gold: #d4a843;
+        --text: #e8e4d9;
+    }
+
+    .stApp { background-color: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; }
+    
+    /* Header stile Android */
+    .header-box {
+        background: var(--bg);
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .header-box h1 {
+        font-size: 24px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #d4a843, #f0c96a);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 0;
+    }
+    
+    /* Card e Input */
+    .stTextInput, .stSelectbox, .stMultiselect {
+        background-color: var(--card) !important;
+        border-radius: 10px !important;
+    }
+    
+    /* Pulsanti Oro */
+    .stButton>button {
+        width: 100%;
+        background: var(--gold) !important;
+        color: #0a0a0f !important;
+        border: none !important;
+        border-radius: 10px !important;
+        font-weight: 800 !important;
+        padding: 15px !important;
+        text-transform: uppercase;
+    }
+    
+    /* Palle numeri stile Android */
+    .ball-container {
+        display: flex;
+        justify-content: space-around;
+        margin: 20px 0;
+    }
+    .ball-mobile {
+        width: 55px;
+        height: 55px;
+        border: 2px solid var(--gold);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Space Mono', monospace;
+        font-weight: 700;
+        font-size: 20px;
+        color: var(--gold);
+        background: rgba(212,168,67,0.1);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- FUNZIONI LOGICHE (IL MOTORE ULTRA) ---
+def calcola_distanza(a, b):
+    d = abs(a - b)
+    return d if d <= 45 else 90 - d
+
+def chiusura_triangolare(n1, n2):
+    d = calcola_distanza(n1, n2)
+    return (max(n1, n2) + 30) % 90 or 90 if d == 30 else None
+
+def get_hybrid_scores(df_r, chiusure):
+    scores = {n: 0 for n in range(1, 91)}
+    for n in range(1, 91):
+        idx = df_r[df_r['N'].apply(lambda x: n in x)].index
+        rit = len(df_r) - 1 - idx[-1] if not idx.empty else len(df_r)
+        scores[n] += (min(rit, 100) / 100) * 40
+    for c in chiusure:
+        if c: scores[c] += 60
+    return scores
+
+def genera_pdf_mobile(ruota, ambi, terni, totale):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(190, 10, txt="ULTRA SYNTHESIS 2026", ln=True, align='C')
+    pdf.set_font("Arial", size=12)
+    pdf.cell(190, 10, txt=f"Ruota: {ruota} | Spesa: {totale:.2f} Euro", ln=True, align='C')
+    pdf.ln(10)
+    pdf.cell(190, 10, txt="AMBI:", ln=True)
+    for a in ambi: pdf.cell(190, 8, txt=f"- {a}", ln=True)
+    pdf.ln(5)
+    pdf.cell(190, 10, txt="TERNI:", ln=True)
+    for t in terni: pdf.cell(190, 8, txt=f"- {t}", ln=True)
+    return pdf.output(dest='S').encode('latin-1')
+
+# --- APP LAYOUT ---
+st.markdown('<div class="header-box"><h1>ULTRA SYNTHESIS 2026</h1></div>', unsafe_allow_html=True)
+
+file_arch = st.file_uploader("📂 Carica Storico (.txt)", type=["txt"])
+
+if file_arch:
+    dati = []
+    content = file_arch.read().decode("utf-8").splitlines()
+    for i, riga in enumerate(content):
+        pz = re.split(r'[\t ]+', riga.strip())
+        if len(pz) >= 7:
+            dati.append({'ID': i, 'Data': pz[0], 'Ruota': pz[1].upper(), 'N': [int(pz[2]), int(pz[3]), int(pz[4]), int(pz[5]), int(pz[6])]})
+    df_main = pd.DataFrame(dati)
+
+    if not df_main.empty:
+        r_sel = st.selectbox("📍 SELEZIONA RUOTA", sorted(df_main['Ruota'].unique()))
+        df_r = df_main[df_main['Ruota'] == r_sel].reset_index(drop=True)
         
-        for s in numeri_spia:
-            for ambo in ambi_usciti:
-                database_ambi.append((int(s), ambo))
-    
-    counts = Counter(database_ambi)
-    return counts.most_common(1)[0] if counts else None
+        tab_anal, tab_bank = st.tabs(["🎯 ANALISI", "💰 BANKROLL"])
 
-# --- STATO SESSIONE ---
-if 'wallet' not in st.session_state: st.session_state.wallet = 1000.0
-if 'history' not in st.session_state: st.session_state.history = [1000.0]
-if 'giocate' not in st.session_state: st.session_state.giocate = []
+        with tab_anal:
+            ultima = df_r.iloc[-1]['N']
+            chius = [chiusura_triangolare(a, b) for a, b in itertools.combinations(ultima, 2) if chiusura_triangolare(a, b)]
+            sc = get_hybrid_scores(df_r, chius)
+            proposti = [n for n, s in sorted(sc.items(), key=lambda x: x[1], reverse=True)[:5]]
 
-df_totale = carica_storico()
-ORDINE_RUOTE = ["BA", "CA", "FI", "GE", "MI", "NA", "PA", "RM", "TO", "VE", "RN"]
+            # Visualizzazione Palline Oro
+            st.markdown('<div class="ball-container">' + "".join([f'<div class="ball-mobile">{n}</div>' for n in proposti]) + '</div>', unsafe_allow_html=True)
+            
+            # Input Numeri Manuali (Fix richiesto: non si perdono più)
+            user_nums = st.text_input("✍️ Inserisci i tuoi numeri studiati", "")
+            extra = [int(x) for x in re.findall(r'\d+', user_nums) if 1 <= int(x) <= 90]
+            pool = sorted(list(set(proposti + extra)))
+            
+            final_sel = st.multiselect("Conferma numeri:", options=pool, default=[n for n in pool if n in proposti or n in extra])
 
-# --- SIDEBAR (Inserimento Invariato) ---
-with st.sidebar:
-    st.markdown("## ⚙️ Pannello Gestione")
-    with st.expander("➕ Inserisci Estrazione"):
-        d_n = st.date_input("Data", format="DD/MM/YYYY")
-        r_n = st.selectbox("Ruota", ORDINE_RUOTE)
-        n_n = st.text_input("5 Numeri (es: 1,2,3,4,5)")
-        if st.button("SALVA"):
-            # Qui andrebbe la logica di scrittura su file se necessaria
-            st.success("Dati pronti per il salvataggio")
-    st.divider()
-    with st.form("giocata"):
-        st.markdown("### 📝 Nuova Bolletta")
-        t_g = st.selectbox("Tipo", ["Estratto", "Ambo", "Terno"])
-        ru_g = st.selectbox("Ruota ", ORDINE_RUOTE)
-        nu_g = st.text_input("Numeri")
-        im_g = st.number_input("Spesa €", 1.0)
-        if st.form_submit_button("REGISTRA"):
-            st.session_state.wallet -= im_g
-            st.session_state.history.append(st.session_state.wallet)
-            st.session_state.giocate.insert(0, {"Data": datetime.now().strftime("%H:%M"), "Ruota": ru_g, "Numeri": nu_g, "Tipo": t_g, "Spesa": im_g})
-            st.rerun()
+            if len(final_sel) >= 2:
+                ambi = [f"{c[0]}-{c[1]}" for c in itertools.combinations(final_sel, 2) if st.checkbox(f"Ambo {c[0]}-{c[1]}", value=True)]
+                terni = [f"{c[0]}-{c[1]}-{c[2]}" for c in itertools.combinations(final_sel, 3) if st.checkbox(f"Terno {c[0]}-{c[1]}-{c[2]}", value=True)]
+                
+                p_ambo = st.number_input("Puntata Ambo (€)", 1.0, 100.0, 1.0)
+                tot_spesa = (len(ambi) * p_ambo)
+                st.warning(f"Investimento: {tot_spesa:.2f} €")
+                
+                if st.button("🚀 REGISTRA GIOCATA"):
+                    nuove = []
+                    for a in ambi: nuove.append({"Data": datetime.now().date(), "Ruota": r_sel, "Numeri": a, "Tipo": "Ambi", "Investimento": p_ambo, "Vincita": 0.0, "Esito": "In gioco", "Colpi": 0, "ID_S": df_main['ID'].max()})
+                    for t in terni: nuove.append({"Data": datetime.now().date(), "Ruota": r_sel, "Numeri": t, "Tipo": "Terni", "Investimento": 1.0, "Vincita": 0.0, "Esito": "In gioco", "Colpi": 0, "ID_S": df_main['ID'].max()})
+                    if nuove:
+                        df_n = pd.DataFrame(nuove)
+                        if os.path.exists(DB_FILE): pd.concat([pd.read_csv(DB_FILE), df_n], ignore_index=True).to_csv(DB_FILE, index=False)
+                        else: df_n.to_csv(DB_FILE, index=False)
+                        st.success("Registrato!")
 
-# --- INTERFACCIA PRINCIPALE ---
-st.markdown("# 🎯 LottoPro Master v6.9")
+                pdf_b = genera_pdf_mobile(r_sel, ambi, terni, tot_spesa)
+                st.download_button("📥 SCARICA PDF PER RICEVITORIA", pdf_b, "schedina.pdf")
 
-if not df_totale.empty:
-    c_sx, c_dx = st.columns([2.5, 1])
-    
-    with c_sx:
-        u_dt = df_totale['Data'].iloc[0]
-        st.markdown(f"### 📌 Quadro del {u_dt.strftime('%d/%m/%Y')}")
-        riassunto = []
-        for r in ORDINE_RUOTE:
-            df_r = df_totale[df_totale['Ruota'] == r].reset_index(drop=True)
-            if not df_r.empty:
-                est = df_r.iloc[0][['N1','N2','N3','N4','N5']].values.astype(int)
-                riassunto.append({"Ruota": r, "1°": est[0], "2°": est[1], "3°": est[2], "4°": est[3], "5°": est[4]})
-        st.table(pd.DataFrame(riassunto))
+        with tab_bank:
+            if os.path.exists(DB_FILE):
+                df_tot = pd.read_csv(DB_FILE)
+                st.metric("BILANCIO NETTO", f"{df_tot['Vincita'].sum() - df_tot['Investimento'].sum():.2f} €")
+                
+                if st.button("🔄 VERIFICA ESITI"):
+                    for idx, r in df_tot.iterrows():
+                        if r['Esito'] == "In gioco":
+                            df_tot.at[idx, 'Colpi'] += 1
+                            check = df_main[(df_main['Ruota'] == r['Ruota']) & (df_main['ID'] > r['ID_S'])]
+                            target = set(map(int, str(r['Numeri']).split('-')))
+                            for _, estr in check.iterrows():
+                                if target.issubset(set(estr['N'])):
+                                    m = MOLT_AMBO if r['Tipo'] == "Ambi" else MOLT_TERNO
+                                    df_tot.at[idx, 'Vincita'] = (r['Investimento'] * m) * (1 - TASSA_STATO)
+                                    df_tot.at[idx, 'Esito'] = "VINTO"; break
+                    df_tot.to_csv(DB_FILE, index=False); st.rerun()
+                
+                if st.button("📦 ARCHIVIA VECCHIA STRATEGIA"):
+                    df_tot.loc[df_tot['Esito'] == 'In gioco', 'Esito'] = 'Archiviata'
+                    df_tot.to_csv(DB_FILE, index=False); st.rerun()
 
-    with c_dx:
-        st.markdown("### 📋 Ultime Bollette")
-        for g in st.session_state.giocate[:3]:
-            with st.container(border=True):
-                st.write(f"**{g['Ruota']}** | {g['Numeri']}")
-                st.caption(f"{g['Tipo']} - €{g['Spesa']}")
-
-    st.divider()
-    
-    tab_an, tab_bk = st.tabs(["🔍 Strategia & Analisi Profonda", "📈 Bankroll"])
-    
-    with tab_an:
-        col1, col2 = st.columns(2)
-        r_sel = col1.selectbox("Seleziona Ruota Analisi:", ORDINE_RUOTE)
-        
-        # PULSANTE PER IL TUO STUDIO DEI 200 CICLI
-        if st.button("🔬 ESEGUI ANALISI AMBI SPIA (200 Estrazioni)"):
-            ris = analizzatore_ambi_spia_200(df_totale, r_sel)
-            if ris:
-                spia, ambo = ris[0]
-                freq = ris[1]
-                st.success(f"### 🔥 Pattern Trovato!\nDopo il numero **{spia}**, l'ambo più frequente è **{ambo[0]} - {ambo[1]}**.")
-                st.info(f"**Statistica:** Uscito **{freq} volte** nelle ultime 200 estrazioni su {r_sel}.")
-            else:
-                st.warning("Dati insufficienti per questa ruota.")
-
-        st.markdown(f"#### 📜 Storico Ultime Estrazioni {r_sel}")
-        df_f = df_totale[df_totale['Ruota'] == r_sel].head(10)
-        st.dataframe(df_f[['Data', 'N1', 'N2', 'N3', 'N4', 'N5']], use_container_width=True, hide_index=True)
-
-    with tab_bk:
-        st.metric("Saldo Capitale", f"€ {st.session_state.wallet}", delta=f"{st.session_state.wallet - 1000.0} €")
-        vincita = st.number_input("Accredita Vincita €", 0.0)
-        if st.button("AGGIORNA SALDO"):
-            st.session_state.wallet += vincita
-            st.session_state.history.append(st.session_state.wallet)
-            st.rerun()
-        st.line_chart(st.session_state.history)
-
-else: st.error("Carica il file storico.txt per iniziare.")
+                st.dataframe(df_tot.sort_values(by="Data", ascending=False))
